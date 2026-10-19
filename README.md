@@ -51,8 +51,8 @@ database on every run.
 
 ## File structure
 
-- `oppgave-1-database.sql` – Oppgave 1, creates the database, tables and
-  relationships, followed by verification queries
+- `oppgave-1-database.sql` – Oppgave 1 and 2, creates the database, tables and
+  relationships, inserts the sample data, followed by verification queries
 - `README.md` – this file
 
 The SQL file names are kept exactly as required by the assignment.
@@ -127,6 +127,98 @@ Expected result: 1 database, 3 tables, 6 constraints (3 × `PRIMARY KEY`,
 | 4 | Constraint query | 3 PK, 1 UNIQUE, 2 FK | OK |
 | 5 | Foreign key query | `orders.customer_id` → `customers`, `orders.product_id` → `products` | OK |
 
+## Oppgave 2 – Insert sample data
+
+`oppgave-1-database.sql`
+
+The sample data is inserted in the same script, directly after the tables are
+created, so one run builds the whole database from scratch.
+
+### Order of insertion
+
+`orders` refers to both `customers` and `products` through foreign keys. An
+order can only be inserted when the customer and the product it points to
+already exist, so the order is:
+
+1. `products`
+2. `customers`
+3. `orders`
+
+Inserting `orders` first would fail with a foreign key error.
+
+### INSERT statements
+
+Each table is filled with one multi-row `INSERT`, with the column list written
+out explicitly:
+
+| Table | Rows |
+|---|---|
+| `products` | 10 |
+| `customers` | 8 |
+| `orders` | 18 |
+
+The ID values are inserted explicitly, exactly as given in the assignment, so
+that the foreign keys in `orders` point to the intended customers and
+products. `AUTO_INCREMENT` still works afterwards: MySQL moves the counter to
+the highest existing value + 1, so new rows get the next free ID.
+
+### Character set
+
+This was added as a reflection after Oppgave 2 was finished. The sample data
+contains Norwegian characters (`Tromsø`), and relying on the server's default
+character set is not safe: on another server or client the same script could
+store the data incorrectly. The character set is therefore set explicitly in
+two places at the top of the script:
+
+- `SET NAMES utf8mb4` – the connection between the client and the server.
+  Without it, a client with a different default (for example the `mysql`
+  command-line client in Docker) can read the file in the wrong encoding and
+  store `Tromsø` as `TromsÃ¸`.
+- `CREATE DATABASE nettbutikk CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci`
+  – the database itself, so the tables inherit `utf8mb4` regardless of the
+  server's default settings.
+
+### Verification
+
+Three queries at the end of the script check the data. The first checks the
+character set of the database:
+
+```sql
+SELECT default_character_set_name, default_collation_name
+FROM information_schema.schemata
+WHERE schema_name = 'nettbutikk';
+```
+
+Expected result: `utf8mb4`, `utf8mb4_0900_ai_ci`.
+
+The second counts the rows in all three tables:
+
+```sql
+SELECT (SELECT COUNT(*) FROM products)  AS products_count,
+       (SELECT COUNT(*) FROM customers) AS customers_count,
+       (SELECT COUNT(*) FROM orders)    AS orders_count;
+```
+
+Expected result: `10`, `8`, `18`.
+
+The third checks that the Norwegian character was stored correctly:
+
+```sql
+SELECT city FROM customers WHERE city LIKE 'Troms%';
+```
+
+Expected result: `Tromsø`.
+
+### Test cases
+
+| # | Situation | Expected result | Result |
+|---|---|---|---|
+| 1 | Run the full script on an empty server | All tables created and filled, no errors | OK |
+| 2 | Run the full script a second time | Database rebuilt, no duplicate rows | OK |
+| 3 | Row count query | `10`, `8`, `18` | OK |
+| 4 | Character set query | `utf8mb4`, `utf8mb4_0900_ai_ci` | OK |
+| 5 | `Tromsø` query | `Tromsø`, not `TromsÃ¸` | OK |
+
 ## Requirements compliance
 
 ### Oppgave 1
@@ -142,6 +234,18 @@ Expected result: 1 database, 3 tables, 6 constraints (3 × `PRIMARY KEY`,
 | Foreign keys: order → existing customer and existing product | Done |
 | Verify database, tables, types, keys and unique constraint | Done – verification queries at the end of the script |
 | Save in `oppgave-1-database.sql` | Done |
+
+### Oppgave 2
+
+| Requirement | Status |
+|---|---|
+| Insert all sample data into `products` (10 rows) | Done |
+| Insert all sample data into `customers` (8 rows) | Done |
+| Insert all sample data into `orders` (18 rows) | Done |
+| `INSERT` statements written by hand | Done |
+| Correct order of insertion because of foreign keys | Done – `products`, `customers`, then `orders` |
+| Sample data included in `oppgave-1-database.sql` | Done |
+| Script creates the whole database and inserts all data from scratch | Done |
 
 ## Git
 
@@ -187,8 +291,32 @@ Optional suggestions:
 verification queries were written by me. I reviewed each suggestion and
 decided which ones to apply. The optional points are handled separately as
 part of debugging and reflection, so that I can test and explain each change
-myself rather than copying it. No errors or problems were encountered when
-using AI for Oppgave 1.
+myself rather than copying it.
+
+Point 1 was applied later, as a reflection after Oppgave 2 was finished: the
+sample data contains `Tromsø`, and I decided not to rely on the server's
+default character set. I added `SET NAMES utf8mb4` for the connection and an
+explicit character set on `CREATE DATABASE`, together with two verification
+queries (`information_schema.schemata` and the `Tromsø` query). I ran the
+script and confirmed that the database uses `utf8mb4` and that `Tromsø` is
+stored correctly.
+
+No errors or problems were encountered when using AI for Oppgave 1.
+
+### Prompt 2 — Oppgave 2, review
+
+**Prompt:** the updated `oppgave-1-database.sql` with the `INSERT` statements,
+sent for a review against the Oppgave 2 requirements. I wrote the solution
+myself first.
+
+**Response (summary):** all rows were checked line by line against the tables
+in the assignment, and the order of insertion was confirmed as correct.
+No errors were found. One optional suggestion: combine the three separate
+`COUNT(*)` queries into one query, so the result is shown as a single row.
+
+**How it was used and quality assured:** I applied the suggestion and ran the
+script to confirm that the query returns `10`, `8` and `18`. No errors or
+problems were encountered when using AI for Oppgave 2.
 
 ### Other sources
 
